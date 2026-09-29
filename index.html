@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Muralii Krishnan — Notes on Security</title>
+<meta name="description" content="A working notebook on network security, offensive tooling, and defense. First post: MITM attacks via ARP spoofing on public Wi-Fi.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: single narrow column, editorial notebook. */
+:root{
+  --bg:#f4f1ea;
+  --panel:#ffffff;
+  --ink:#141210;
+  --ink-2:#3a3630;
+  --muted:#7a7268;
+  --rule:#d9d1c2;
+  --accent:#b8341f;   /* oxidized red — packet-warning */
+  --accent-2:#1a4d3a; /* wire green */
+  --code-bg:#141210;
+  --code-fg:#f4f1ea;
+  --code-accent:#e8b04a;
+  --font-display:'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-body:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12110f;
+    --panel:#1c1a17;
+    --ink:#efe9dc;
+    --ink-2:#c9c1b0;
+    --muted:#8a8377;
+    --rule:#2c2925;
+    --accent:#e26a4f;
+    --accent-2:#6cb193;
+    --code-bg:#0a0908;
+    --code-fg:#efe9dc;
+    --code-accent:#f0c060;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12110f;
+  --panel:#1c1a17;
+  --ink:#efe9dc;
+  --ink-2:#c9c1b0;
+  --muted:#8a8377;
+  --rule:#2c2925;
+  --accent:#e26a4f;
+  --accent-2:#6cb193;
+  --code-bg:#0a0908;
+  --code-fg:#efe9dc;
+  --code-accent:#f0c060;
+  color-scheme:dark;
+}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font-body);
+  line-height:1.65;
+  font-size:16px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{
+  max-width:720px;
+  margin:0 auto;
+  padding:32px 20px 96px;
+}
+header.site{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  padding-bottom:20px;
+  border-bottom:1px solid var(--rule);
+  margin-bottom:56px;
+  flex-wrap:wrap;
+  gap:12px;
+}
+.brand{
+  font-family:var(--font-display);
+  font-weight:800;
+  font-size:20px;
+  letter-spacing:-0.01em;
+}
+.brand .dot{color:var(--accent)}
+nav.site{
+  display:flex;
+  gap:20px;
+  font-size:14px;
+  color:var(--muted);
+}
+nav.site a{color:var(--muted);text-decoration:none;border-bottom:1px solid transparent}
+nav.site a:hover{color:var(--ink);border-bottom-color:var(--accent)}
+
+.eyebrow{
+  font-family:var(--font-mono);
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:0.14em;
+  color:var(--accent);
+  margin-bottom:20px;
+}
+h1.title{
+  font-family:var(--font-display);
+  font-weight:800;
+  font-size:clamp(36px, 6vw, 56px);
+  line-height:1.02;
+  letter-spacing:-0.02em;
+  text-wrap:balance;
+  margin:0 0 20px;
+}
+h1.title em{font-style:italic;color:var(--accent);font-weight:800}
+.deck{
+  font-family:var(--font-display);
+  font-weight:400;
+  font-style:italic;
+  font-size:20px;
+  line-height:1.45;
+  color:var(--ink-2);
+  text-wrap:balance;
+  margin:0 0 32px;
+}
+.byline{
+  display:flex;
+  gap:16px;
+  flex-wrap:wrap;
+  font-size:13px;
+  color:var(--muted);
+  padding:14px 0;
+  border-top:1px solid var(--rule);
+  border-bottom:1px solid var(--rule);
+  margin-bottom:40px;
+  font-family:var(--font-mono);
+}
+.byline span strong{color:var(--ink-2);font-weight:600}
+
+.paper-card{
+  display:flex;
+  gap:16px;
+  align-items:center;
+  padding:16px;
+  border:1px solid var(--rule);
+  border-radius:2px;
+  background:var(--panel);
+  margin:32px 0;
+  flex-wrap:wrap;
+}
+.paper-card .glyph{
+  width:44px;height:56px;flex:0 0 auto;
+  border:1px solid var(--rule);
+  background:linear-gradient(135deg, var(--panel) 60%, var(--bg) 60%);
+  position:relative;
+}
+.paper-card .glyph::after{
+  content:"PDF";position:absolute;bottom:6px;left:0;right:0;text-align:center;
+  font-family:var(--font-mono);font-size:9px;color:var(--accent);letter-spacing:0.1em;
+}
+.paper-card .meta{flex:1 1 200px;min-width:0}
+.paper-card .meta .h{font-family:var(--font-display);font-weight:600;font-size:16px;color:var(--ink)}
+.paper-card .meta .s{font-size:13px;color:var(--muted);margin-top:2px}
+.paper-card .actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{
+  display:inline-block;
+  padding:9px 14px;
+  font-family:var(--font-mono);
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  text-decoration:none;
+  border:1px solid var(--ink);
+  color:var(--ink);
+  background:transparent;
+}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:hover{background:var(--ink);color:var(--bg)}
+.btn.primary:hover{background:var(--ink);border-color:var(--ink)}
+
+article h2{
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:28px;
+  letter-spacing:-0.01em;
+  margin:56px 0 12px;
+  padding-top:8px;
+  text-wrap:balance;
+}
+article h2 .num{
+  font-family:var(--font-mono);
+  font-size:12px;
+  font-weight:400;
+  color:var(--accent);
+  letter-spacing:0.14em;
+  display:block;
+  margin-bottom:6px;
+}
+article h3{
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:20px;
+  margin:36px 0 10px;
+  color:var(--ink);
+}
+article p{margin:0 0 18px;color:var(--ink-2)}
+article p strong{color:var(--ink);font-weight:600}
+article a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+article ul{padding-left:20px;margin:0 0 18px;color:var(--ink-2)}
+article li{margin-bottom:6px}
+article li strong{color:var(--ink)}
+
+figure{
+  margin:32px 0;
+  padding:0;
+}
+figure img{
+  display:block;
+  width:100%;
+  height:auto;
+  border:1px solid var(--rule);
+  background:#fff;
+}
+figcaption{
+  font-family:var(--font-mono);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  color:var(--muted);
+  margin-top:10px;
+  padding-left:12px;
+  border-left:2px solid var(--accent);
+}
+
+pre.code{
+  background:var(--code-bg);
+  color:var(--code-fg);
+  padding:16px 18px;
+  overflow-x:auto;
+  font-family:var(--font-mono);
+  font-size:13px;
+  line-height:1.5;
+  border-left:3px solid var(--code-accent);
+  margin:20px 0;
+}
+pre.code .c{color:#8a8377}
+pre.code .k{color:var(--code-accent)}
+code.inline{
+  font-family:var(--font-mono);
+  font-size:0.88em;
+  background:rgba(0,0,0,0.06);
+  padding:1px 6px;
+  border-radius:2px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) code.inline{background:rgba(255,255,255,0.06)}
+}
+:root[data-theme="dark"] code.inline{background:rgba(255,255,255,0.06)}
+
+.callout{
+  border-left:3px solid var(--accent-2);
+  padding:14px 18px;
+  background:var(--panel);
+  margin:24px 0;
+  font-size:14px;
+}
+.callout .label{
+  font-family:var(--font-mono);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.14em;
+  color:var(--accent-2);
+  margin-bottom:6px;
+}
+
+table.arp{
+  width:100%;
+  border-collapse:collapse;
+  font-family:var(--font-mono);
+  font-size:12px;
+  margin:20px 0;
+}
+table.arp th,table.arp td{
+  padding:6px 10px;
+  text-align:left;
+  border-bottom:1px solid var(--rule);
+}
+table.arp th{
+  color:var(--accent);
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  font-size:11px;
+  font-weight:600;
+}
+table.arp td.spoof{color:var(--accent);font-weight:600}
+.tbl-wrap{overflow-x:auto}
+
+.dropcap::first-letter{
+  font-family:var(--font-display);
+  font-weight:800;
+  font-size:64px;
+  line-height:0.85;
+  float:left;
+  padding:6px 10px 0 0;
+  color:var(--accent);
+}
+
+hr.rule{
+  border:0;
+  border-top:1px solid var(--rule);
+  margin:56px 0 32px;
+}
+
+footer.site{
+  margin-top:64px;
+  padding-top:24px;
+  border-top:1px solid var(--rule);
+  font-size:13px;
+  color:var(--muted);
+  font-family:var(--font-mono);
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:12px;
+}
+footer.site a{color:var(--muted)}
+
+.toc{
+  background:var(--panel);
+  border:1px solid var(--rule);
+  padding:18px 22px;
+  margin:32px 0 40px;
+  font-size:14px;
+}
+.toc .label{
+  font-family:var(--font-mono);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.14em;
+  color:var(--accent);
+  margin-bottom:10px;
+}
+.toc ol{list-style:none;padding:0;margin:0;counter-reset:toc}
+.toc li{counter-increment:toc;padding:4px 0;display:flex;gap:14px}
+.toc li::before{
+  content:counter(toc,decimal-leading-zero);
+  font-family:var(--font-mono);
+  font-size:11px;
+  color:var(--muted);
+  padding-top:4px;
+}
+.toc a{color:var(--ink-2);text-decoration:none;border-bottom:1px solid transparent}
+.toc a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="site">
+  <div class="brand">mt<span class="dot">.</span>notes</div>
+  <nav class="site">
+    <a href="#post">Post</a>
+    <a href="assets/MitM_Attack_Arp_Poisoning_FinalReport.pdf" target="_blank" rel="noopener">Paper (PDF)</a>
+    <a href="https://github.com/muraliikrishnant" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+</header>
+
+<main id="post">
+
+<div class="eyebrow">Field notes · Network security · 2026</div>
+
+<h1 class="title">The gateway that <em>wasn't</em>.</h1>
+<p class="deck">What it takes to sit in the middle of a public Wi-Fi network with nothing more than a laptop, a well-known tool, and a protocol that never learned to say no.</p>
+
+<div class="byline">
+  <span><strong>Author</strong> Muralii Krishnan Thirumalai</span>
+  <span><strong>Affiliation</strong> Rutgers ECE</span>
+  <span><strong>Reading</strong> 12 min</span>
+</div>
+
+<div class="paper-card">
+  <div class="glyph" aria-hidden="true"></div>
+  <div class="meta">
+    <div class="h">Man-in-the-Middle Attacks via ARP Spoofing on Public Wi-Fi Networks</div>
+    <div class="s">Full technical paper · 8 pages · figures, listings, references</div>
+  </div>
+  <div class="actions">
+    <a class="btn primary" href="assets/MitM_Attack_Arp_Poisoning_FinalReport.pdf" target="_blank" rel="noopener">Read the paper</a>
+  </div>
+</div>
+
+<p class="dropcap">Public Wi-Fi is a strange place. It behaves like the internet, it charges nothing, and it asks almost nothing in return &mdash; and that lack of asking is the entire problem. This post walks through a project I built to study one of the oldest tricks that still works there: <strong>Man-in-the-Middle (MITM) via ARP spoofing</strong>. It is a summary of the technical paper linked above, written for people who want the intuition before the citations.</p>
+
+<div class="toc">
+  <div class="label">In this post</div>
+  <ol>
+    <li><a href="#why">Why ARP is still a problem</a></li>
+    <li><a href="#lab">The lab</a></li>
+    <li><a href="#attack">Executing the attack</a></li>
+    <li><a href="#https">What HTTPS actually protects</a></li>
+    <li><a href="#vpn">What a VPN actually protects</a></li>
+    <li><a href="#defense">Defense that survives contact</a></li>
+    <li><a href="#close">Closing</a></li>
+  </ol>
+</div>
+
+<h2 id="why"><span class="num">01 · Background</span>Why ARP is still a problem</h2>
+<p>The Address Resolution Protocol resolves an IP address to a MAC address so packets can cross the physical wire. That is the whole job. It was specified in 1982 (<a href="assets/MitM_Attack_Arp_Poisoning_FinalReport.pdf" target="_blank" rel="noopener">RFC 826</a>) with no authentication, no sequence checking, and no binding validation &mdash; any host on the local segment can shout an answer, whether it was asked or not, and every listener will believe it. This is called a <em>gratuitous ARP</em>, and it is doing exactly what the protocol says it should.</p>
+
+<p>On a corporate switch fabric with Dynamic ARP Inspection (DAI) and DHCP snooping, that shout gets dropped. On the café Wi-Fi where a router runs default firmware and every client sits in the same broadcast domain, it doesn't. The attacker sends the victim a forged ARP reply that maps the gateway's IP to the attacker's MAC, and simultaneously sends the gateway a forged reply that maps the victim's IP to the attacker's MAC. From that moment, the attacker <em>is</em> the gateway, in both directions, silently.</p>
+
+<figure>
+  <img src="assets/figures/fig1-mitm-concept.png" alt="Diagram: user and server connected via the attacker sitting between them.">
+  <figcaption>Fig. 1 &mdash; The topology the victim thinks they are on, versus the one they are actually on.</figcaption>
+</figure>
+
+<h2 id="lab"><span class="num">02 · Methodology</span>The lab</h2>
+<p>The experiments ran in two setups, both in isolated virtual networks so nothing here touched a real user:</p>
+<ul>
+  <li><strong>Kali Linux &rarr; Windows 11</strong>, both bridged on a UTM host so they share subnet <code class="inline">192.168.64.0/24</code>, simulating an open café Wi-Fi.</li>
+  <li><strong>Kali Linux &rarr; Android emulator</strong> (Android Studio, default AndroidWifi network) &mdash; the mobile case, where the victim is a browser inside an app WebView.</li>
+</ul>
+<p>The toolchain is deliberately boring, because the attack does not need anything exotic:</p>
+<ul>
+  <li><strong>Ettercap</strong> &mdash; runs the ARP poisoning and reissues replies fast enough that legitimate ARP answers never win.</li>
+  <li><strong>Wireshark</strong> &mdash; passive capture, filters on <code class="inline">arp</code>, <code class="inline">http</code>, and <code class="inline">dns</code>.</li>
+  <li><strong>Burp Suite</strong> &mdash; upstream HTTP proxy on the attacker box; the victim's traffic gets reassembled into readable request/response pairs.</li>
+  <li><strong>SSLStrip</strong> &mdash; rewrites <code class="inline">https://</code> redirects into <code class="inline">http://</code> in responses that the attacker forwards on.</li>
+  <li>Terminal utilities &mdash; <code class="inline">arp -a</code> to verify the poisoning, and <code class="inline">echo 1 &gt; /proc/sys/net/ipv4/ip_forward</code> to make the attacker act like the router.</li>
+</ul>
+
+<figure>
+  <img src="assets/figures/fig2-topology.png" alt="Terminal output showing ARP tables and network interfaces on both attacker and victim.">
+  <figcaption>Fig. 2 &mdash; Baseline: attacker on <code class="inline">.7</code>, victim on <code class="inline">.6</code>, gateway on <code class="inline">.1</code>, before poisoning.</figcaption>
+</figure>
+
+<h2 id="attack"><span class="num">03 · Execution</span>Running the attack</h2>
+<p>Ettercap sends target-1 (the victim) forged replies for the gateway, and target-2 (the gateway) forged replies for the victim. It repeats them every few seconds so the true owners never get a chance to correct the cache.</p>
+
+<pre class="code"><span class="c"># enable forwarding so the victim's connection doesn't die</span>
+<span class="k">$</span> echo 1 &gt; /proc/sys/net/ipv4/ip_forward
+
+<span class="c"># confirm the current ARP mapping is honest</span>
+<span class="k">$</span> arp -a
+<span class="c"># 192.168.64.1  82-a9-97-34-af-64  dynamic  &larr; real gateway MAC</span>
+
+<span class="c"># run ettercap, curses UI, ARP poisoning against victim and gateway</span>
+<span class="k">$</span> sudo ettercap -T -M arp:remote /192.168.64.6// /192.168.64.1//</pre>
+
+<figure>
+  <img src="assets/figures/fig3-ettercap.png" alt="Ettercap GUI showing two targets added and the ARP poisoning session live.">
+  <figcaption>Fig. 3 &mdash; Ettercap mid-attack. Both targets are added; the tool is spraying gratuitous replies.</figcaption>
+</figure>
+
+<p>Once poisoning is running, the victim's <code class="inline">arp -a</code> shows the tell-tale: two different IPs (the gateway and the attacker) resolving to the same MAC address.</p>
+
+<div class="tbl-wrap">
+<table class="arp" aria-label="Poisoned ARP table on victim">
+  <thead><tr><th>Internet Address</th><th>Physical Address</th><th>Type</th></tr></thead>
+  <tbody>
+    <tr><td>192.168.64.1</td><td class="spoof">12-b0-ca-7f-33-9f</td><td>dynamic</td></tr>
+    <tr><td>192.168.64.7</td><td class="spoof">12-b0-ca-7f-33-9f</td><td>dynamic</td></tr>
+    <tr><td>192.168.64.255</td><td>ff-ff-ff-ff-ff-ff</td><td>static</td></tr>
+    <tr><td>224.0.0.22</td><td>01-00-5e-00-00-16</td><td>static</td></tr>
+  </tbody>
+</table>
+</div>
+<p style="font-size:13px;color:var(--muted);margin-top:-6px">Listing 1 &mdash; Poisoned ARP table on the Windows victim. Both the gateway and the attacker's IP resolve to the attacker's MAC.</p>
+
+<h2 id="https"><span class="num">04 · Traffic</span>What HTTPS actually protects</h2>
+<p>With the redirection in place, the interesting question is what the attacker can <em>read</em>. Against an unencrypted target like a lab site &mdash; <a href="http://testphp.vulnweb.com" target="_blank" rel="noopener">testphp.vulnweb.com</a> is the reference &mdash; Burp Suite decodes the login POST perfectly: <code class="inline">uname=test&amp;pass=test</code>. Wireshark shows the same body on the wire, in clear text, with no warning to the victim.</p>
+
+<figure>
+  <img src="assets/figures/fig4-burp-request.png" alt="Burp Suite intercepting a POST request from the victim.">
+  <figcaption>Fig. 4 &mdash; Burp Suite reassembles the victim's HTTP session in real time.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/figures/fig5-burp-creds.png" alt="Burp Suite showing captured username and password in request body.">
+  <figcaption>Fig. 5 &mdash; Plaintext credentials from an unencrypted login form.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/figures/fig6-http-testsite.png" alt="Screenshot of the acuart test website login page.">
+  <figcaption>Fig. 6 &mdash; The vulnerable web app used for the HTTP capture. Note "Not Secure" in the address bar.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/figures/fig7-captured-creds.png" alt="Ettercap terminal output showing captured HTTP credentials.">
+  <figcaption>Fig. 7 &mdash; Ettercap logs a DHCP request, a DNS query, and finally a captured USER/PASS pair.</figcaption>
+</figure>
+
+<p>Against a site that enforces HSTS &mdash; the browser refuses to load the HTTP version, full stop &mdash; the same attack shows almost nothing. SSLStrip can rewrite the redirect, but the browser has already been told, from a prior visit or the preload list, that this domain is HTTPS-only, and the connection never opens. What the attacker sees on such a site is the encrypted handshake and a stream of protected TLS records.</p>
+
+<figure>
+  <img src="assets/figures/fig8-sslstrip-hsts.png" alt="MIT website loaded over HTTPS despite SSLStrip being active.">
+  <figcaption>Fig. 8 &mdash; SSLStrip against an HSTS site. The browser ignores the rewritten redirect and keeps the padlock.</figcaption>
+</figure>
+
+<div class="callout">
+  <div class="label">Reading</div>
+  HSTS is not a feature of the transport &mdash; it is a promise the browser remembers. That is why the first visit to a site, on a new device, in a hostile network, is the one that matters. Preload lists exist for exactly this reason.
+</div>
+
+<h2 id="vpn"><span class="num">05 · VPN</span>What a VPN actually protects</h2>
+<p>With a VPN active on the victim, the attacker keeps their MITM position &mdash; the ARP cache is still poisoned &mdash; but the payload changes shape. Every packet is a QUIC or TLS 1.3 record to the VPN provider's endpoint. Wireshark labels the body <em>Protected Payload</em> and can say nothing else about it.</p>
+
+<figure>
+  <img src="assets/figures/fig9-wireshark-vpn.png" alt="Wireshark showing QUIC protected payload records from a VPN session.">
+  <figcaption>Fig. 9 &mdash; With VPN on, everything is one destination and one payload type. No form data. No hostnames.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/figures/fig10-ettercap-vpn.png" alt="Ettercap SSL intercept view during a VPN session, showing only encrypted payload.">
+  <figcaption>Fig. 10 &mdash; Ettercap's SSL intercept has nothing to show. The tunnel started before the browser did.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/figures/fig11-vpn-testsite.png" alt="Browser using an insecure HTTP test site while a VPN client is connected.">
+  <figcaption>Fig. 11 &mdash; Even the deliberately insecure test site is unreadable to the attacker when the VPN is on.</figcaption>
+</figure>
+
+<p>The attacker still sees traffic <em>metadata</em> &mdash; packet size, timing, and the VPN endpoint &mdash; but not content. In a public Wi-Fi threat model, that is the level of exposure most users can live with, and it is the single most impactful thing an ordinary user can turn on.</p>
+
+<h2 id="defense"><span class="num">06 · Defense</span>What survives contact with a hostile network</h2>
+<ul>
+  <li><strong>Use a VPN on untrusted networks.</strong> The single largest jump in security in these experiments. It defeats content interception regardless of what the app running on top of it does.</li>
+  <li><strong>Trust HTTPS, but understand HSTS.</strong> The padlock is meaningful; a first visit to a site with no HSTS memory is the one weak moment. Preload lists close that gap.</li>
+  <li><strong>Static ARP</strong> works, but only for machines that don't roam. For a laptop, it is a maintenance burden that will get disabled.</li>
+  <li><strong>Dynamic ARP Inspection</strong> works and scales, but only if the network operator deploys it. A café will not.</li>
+  <li><strong>Prefer known networks or a personal hotspot.</strong> The attack described here requires being on the same L2 segment. LTE tethering removes that entirely.</li>
+  <li><strong>Watch for cert warnings.</strong> A real MITM against a well-configured site produces one. Users click through them; that is the actual bug.</li>
+</ul>
+
+<h2 id="close"><span class="num">07 · Closing</span>The gateway that wasn't</h2>
+<p>ARP spoofing is a forty-year-old attack that keeps working because the layers above it &mdash; DHCP, TLS, HSTS, VPNs &mdash; have been asked to make up for a layer that was never designed with an adversary in mind. The lab work here didn't uncover anything new. That's the point. A well-known attack, a default toolchain, an open network: the failure mode is exactly what you would expect, and the mitigations are exactly the ones that already exist. The interesting question is why the defaults aren't stronger.</p>
+
+<p>The full paper &mdash; methodology, related work, references, and the packet-level detail I skipped over here &mdash; is linked below.</p>
+
+<div class="paper-card">
+  <div class="glyph" aria-hidden="true"></div>
+  <div class="meta">
+    <div class="h">Read the full paper</div>
+    <div class="s">8 pages · figures, listings, and references &mdash; opens in a new tab</div>
+  </div>
+  <div class="actions">
+    <a class="btn primary" href="assets/MitM_Attack_Arp_Poisoning_FinalReport.pdf" target="_blank" rel="noopener">Open PDF</a>
+  </div>
+</div>
+
+<hr class="rule">
+
+<p style="font-size:13px;color:var(--muted);font-style:italic">All experiments were conducted in isolated virtual networks against machines under my own control. Nothing here targets a real user, network, or service. Public Wi-Fi is a threat model, not a target list.</p>
+
+</main>
+
+<footer class="site">
+  <span>&copy; 2026 Muralii Krishnan Thirumalai</span>
+  <span><a href="https://github.com/muraliikrishnant/MITM_AttackArpPoison" target="_blank" rel="noopener">Source on GitHub</a></span>
+</footer>
+
+</div>
+</body>
+</html>

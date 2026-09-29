@@ -1,0 +1,8 @@
+project/captures/*
+!project/captures/.gitkeep
+project/analysis/state/
+*.pcap
+*.pcapng
+__pycache__/
+*.pyc
+.DS_Store
